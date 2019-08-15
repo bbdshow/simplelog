@@ -26,7 +26,8 @@ func TestWrite_AppendCtx(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctx, _ := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
 	err = w.AppendCtx(ctx, []byte("append"))
 	if err != nil {
 		t.Fatal(err)
