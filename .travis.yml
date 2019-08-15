@@ -13,6 +13,7 @@ notifications:
 install:
   - go get github.com/huzhongqing/simplelog
 script:
+  - sudo - E env "PATH = $ PATH"
   - pushd $TRAVIS_BUILD_DIR
   - ./test.sh
 
