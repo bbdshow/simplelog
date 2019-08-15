@@ -1,6 +1,6 @@
 language: go
 os: "linux"
-sudo: false
+sudo: true
 
 go:
   - 1.10.x
