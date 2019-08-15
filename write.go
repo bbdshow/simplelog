@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -26,23 +27,30 @@ type Write struct {
 	file *os.File
 }
 
-func NewWrite(filename string, maxSize int64) (*Write, error) {
+func NewWrite(filename string, maxSize int64) (Write, error) {
 	w := Write{
 		currentFilename:   filename,
 		singleFileMaxSize: maxSize,
 		queue:             make(chan []byte, 100000),
 		exit:              make(chan struct{}, 1),
 	}
+
+	dir := path.Dir(filename)
+	err := os.MkdirAll(dir, os.ModePerm|os.ModeDir)
+	if err != nil {
+		return w, err
+	}
+
 	// 查看文件信息
 	info, err := os.Stat(filename)
 	if err != nil {
 		if os.IsExist(err) {
-			return nil, err
+			return w, err
 		} else {
 			// 不存在文件
 			f, err := os.Create(w.currentFilename)
 			if err != nil {
-				return nil, err
+				return w, err
 			}
 			w.file = f
 		}
@@ -50,7 +58,7 @@ func NewWrite(filename string, maxSize int64) (*Write, error) {
 		// 存在文件
 		f, err := os.OpenFile(w.currentFilename, os.O_APPEND|os.O_WRONLY, os.ModeAppend)
 		if err != nil {
-			return nil, err
+			return w, err
 		}
 		w.file = f
 		w.currentFileSize = info.Size()
@@ -59,11 +67,7 @@ func NewWrite(filename string, maxSize int64) (*Write, error) {
 	// 写文件
 	go w.loop()
 
-	return &w, nil
-}
-
-func (w *Write) Append(message []byte) error {
-	return w.AppendCtx(context.Background(), message)
+	return w, nil
 }
 
 func (w *Write) AppendCtx(ctx context.Context, message []byte) error {
@@ -101,7 +105,7 @@ func (w *Write) loop() {
 		case msg := <-w.queue:
 			n, err := w.file.Write(msg)
 			if err != nil {
-				err = w.Append(msg)
+				err = w.AppendCtx(context.Background(), msg)
 				if err != nil {
 					fmt.Println("w.file.Write", err)
 				}

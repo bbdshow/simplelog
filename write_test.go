@@ -20,30 +20,6 @@ func TestNewWrite(t *testing.T) {
 	}
 }
 
-func TestWrite_Append(t *testing.T) {
-	w, err := NewWrite(dir+"/TestWrite_Append.log", 100)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = w.Append([]byte("append"))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	w.Close()
-
-	w1, err := NewWrite(dir+"/TestWrite_Append.log", 100)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = w1.Append([]byte("append2"))
-	if err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestWrite_AppendCtx(t *testing.T) {
 	w, err := NewWrite(dir+"/TestWrite_AppendCtx.log", 100)
 	if err != nil {
@@ -52,6 +28,16 @@ func TestWrite_AppendCtx(t *testing.T) {
 
 	ctx, _ := context.WithTimeout(context.Background(), time.Second)
 	err = w.AppendCtx(ctx, []byte("append"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	w1, err := NewWrite(dir+"/TestWrite_Append.log", 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = w1.AppendCtx(ctx, []byte("append2"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,10 +51,10 @@ func TestWrite_isRoll(t *testing.T) {
 	count := 30
 	for count > 0 {
 		count--
-		w.Append([]byte("size test" + strconv.Itoa(count)))
+		w.AppendCtx(context.Background(), []byte("size test"+strconv.Itoa(count)))
 	}
 
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond)
 
 	err = w.Close()
 	if err != nil {
