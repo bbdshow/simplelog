@@ -13,8 +13,9 @@ notifications:
 install:
   - go get github.com/huzhongqing/simplelog
 script:
+  - pwd
   - pushd $TRAVIS_BUILD_DIR
-  - ls
+  - pwd
   - chmod +x test.sh
   - ./test.sh
 
