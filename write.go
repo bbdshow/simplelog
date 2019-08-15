@@ -27,30 +27,30 @@ type Write struct {
 	file *os.File
 }
 
-func NewWrite(filename string, maxSize int64) (Write, error) {
+func NewWrite(filename string, maxSize int64) (*Write, error) {
 	w := Write{
 		currentFilename:   filename,
 		singleFileMaxSize: maxSize,
-		queue:             make(chan []byte, 100000),
+		queue:             make(chan []byte, 10000),
 		exit:              make(chan struct{}, 1),
 	}
 
 	dir := path.Dir(filename)
 	err := os.MkdirAll(dir, os.ModePerm|os.ModeDir)
 	if err != nil {
-		return w, err
+		return nil, err
 	}
 
 	// 查看文件信息
 	info, err := os.Stat(filename)
 	if err != nil {
 		if os.IsExist(err) {
-			return w, err
+			return nil, err
 		} else {
 			// 不存在文件
 			f, err := os.Create(w.currentFilename)
 			if err != nil {
-				return w, err
+				return nil, err
 			}
 			w.file = f
 		}
@@ -58,7 +58,7 @@ func NewWrite(filename string, maxSize int64) (Write, error) {
 		// 存在文件
 		f, err := os.OpenFile(w.currentFilename, os.O_APPEND|os.O_WRONLY, os.ModeAppend)
 		if err != nil {
-			return w, err
+			return nil, err
 		}
 		w.file = f
 		w.currentFileSize = info.Size()
@@ -67,7 +67,7 @@ func NewWrite(filename string, maxSize int64) (Write, error) {
 	// 写文件
 	go w.loop()
 
-	return w, nil
+	return &w, nil
 }
 
 func (w *Write) AppendCtx(ctx context.Context, message []byte) error {
@@ -84,6 +84,7 @@ func (w *Write) AppendCtx(ctx context.Context, message []byte) error {
 }
 
 func (w *Write) Close() error {
+	time.Sleep(10 * time.Millisecond)
 	atomic.StoreInt32(&w.isExit, 1)
 	for {
 		if len(w.queue) == 0 {
@@ -107,7 +108,7 @@ func (w *Write) loop() {
 			if err != nil {
 				err = w.AppendCtx(context.Background(), msg)
 				if err != nil {
-					fmt.Println("w.file.Write", err)
+					fmt.Println("w.file.Write", err, msg)
 				}
 			}
 			w.isRoll(w.moreThan(n))
@@ -121,7 +122,8 @@ func (w *Write) moreThan(size int) bool {
 
 func (w *Write) isRoll(roll bool) {
 	if roll {
-		err := w.file.Close()
+		var err error
+		err = w.file.Close()
 		if err != nil {
 			fmt.Printf("simple log file close %s \n", err.Error())
 			return

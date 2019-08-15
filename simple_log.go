@@ -24,7 +24,8 @@ type SimpleLogger struct {
 	cfg    Config
 	format *Format
 
-	writeMap sync.Map // key = level value=write
+	rwMutex  sync.RWMutex
+	writeMap map[string]*Write // key = level value=write
 
 	exit chan struct{}
 }
@@ -69,10 +70,11 @@ func DefaultConfig() Config {
 
 func NewSimpleLogger(cfg Config) (*SimpleLogger, error) {
 	sl := SimpleLogger{
-		level:  int32(cfg.Level),
-		cfg:    cfg,
-		format: NewFormat(cfg.Format),
-		exit:   make(chan struct{}, 1),
+		level:    int32(cfg.Level),
+		cfg:      cfg,
+		format:   NewFormat(cfg.Format),
+		exit:     make(chan struct{}, 1),
+		writeMap: make(map[string]*Write, 5),
 	}
 
 	go sl.checkKeepDays(sl.exit)
@@ -84,10 +86,7 @@ func (sl *SimpleLogger) Debug(format string, args ...interface{}) {
 	if !sl.isWrite(DebugLevel) {
 		return
 	}
-	err := sl.Write(context.Background(), true, "DEBUG", fmt.Sprintf(format, args...))
-	if err != nil {
-		fmt.Println(err)
-	}
+	sl.Write(context.Background(), true, "DEBUG", fmt.Sprintf(format, args...))
 }
 
 func (sl *SimpleLogger) Info(format string, args ...interface{}) {
@@ -153,15 +152,21 @@ func (sl *SimpleLogger) SetLevel(level int) {
 	atomic.StoreInt32(&sl.level, int32(level))
 }
 
+func (sl *SimpleLogger) Stack(err error) string {
+	return sl.format.Stack(err.Error())
+}
+
+// Close write 存在缓存队列，一定要 close 保证队列的所有数据都写入磁盘
 func (sl *SimpleLogger) Close() error {
-	sl.writeMap.Range(func(k, v interface{}) bool {
-		write := v.(Write)
-		err := write.Close()
+	sl.rwMutex.RLock()
+	defer sl.rwMutex.RUnlock()
+
+	for k, v := range sl.writeMap {
+		err := v.Close()
 		if err != nil {
-			fmt.Printf("close %s %s\n", k.(string), err.Error())
+			fmt.Printf("close %s %s\n", k, err.Error())
 		}
-		return true
-	})
+	}
 
 	sl.exit <- struct{}{}
 
@@ -171,17 +176,19 @@ func (sl *SimpleLogger) Close() error {
 func (sl *SimpleLogger) checkKeepDays(exit chan struct{}) {
 	ticker := time.NewTicker(10 * time.Minute)
 	for {
-		select {
-		case <-ticker.C:
-			files, err := ioutil.ReadDir(sl.cfg.Dir)
-			if err == nil {
-				for _, file := range files {
-					if time.Now().Add(-sl.cfg.KeepTime).After(file.ModTime()) {
-						// 删除此文件
-						os.Remove(path.Join(sl.cfg.Dir, file.Name()))
-					}
+		// 先执行一把
+		files, err := ioutil.ReadDir(sl.cfg.Dir)
+		if err == nil {
+			for _, file := range files {
+				if time.Now().Add(-sl.cfg.KeepTime).After(file.ModTime()) {
+					// 删除此文件
+					os.Remove(path.Join(sl.cfg.Dir, file.Name()))
 				}
 			}
+		}
+		select {
+		case <-ticker.C:
+
 		case <-exit:
 			ticker.Stop()
 
@@ -190,18 +197,24 @@ func (sl *SimpleLogger) checkKeepDays(exit chan struct{}) {
 	}
 }
 
-func (sl *SimpleLogger) loadOrCreateWrite(level string) (Write, error) {
-	w, ok := sl.writeMap.Load(level)
+func (sl *SimpleLogger) loadOrCreateWrite(level string) (*Write, error) {
+	sl.rwMutex.RLock()
+	w, ok := sl.writeMap[level]
+	sl.rwMutex.RUnlock()
+
 	if !ok {
 		w, err := NewWrite(path.Join(sl.cfg.Dir, fmt.Sprintf("%s.log", strings.ToLower(level))), sl.cfg.MaxSize)
 		if err != nil {
-			return Write{}, err
+			return nil, err
 		}
-		sl.writeMap.Store(level, w)
+		sl.rwMutex.Lock()
+		sl.writeMap[level] = w
+		sl.rwMutex.Unlock()
+
 		return w, nil
 	}
 
-	return w.(Write), nil
+	return w, nil
 }
 
 func (sl *SimpleLogger) isWrite(level int) bool {
