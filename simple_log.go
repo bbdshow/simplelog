@@ -38,6 +38,7 @@ const (
 	FatalLevel
 )
 
+// 日志配置信息
 type Config struct {
 	// 写入文件夹
 	Dir string
@@ -56,6 +57,7 @@ type Config struct {
 	Format FormatConfig
 }
 
+// 默认配置
 func DefaultConfig() Config {
 	return Config{
 		Dir:           "./log",
@@ -68,6 +70,7 @@ func DefaultConfig() Config {
 	}
 }
 
+// NewSimpleLogger
 func NewSimpleLogger(cfg Config) (*SimpleLogger, error) {
 	sl := SimpleLogger{
 		level:    int32(cfg.Level),
@@ -77,11 +80,12 @@ func NewSimpleLogger(cfg Config) (*SimpleLogger, error) {
 		writeMap: make(map[string]*Write, 5),
 	}
 
-	go sl.checkKeepDays(sl.exit)
+	go sl.checkKeepTime(sl.exit)
 
 	return &sl, nil
 }
 
+// Debug
 func (sl *SimpleLogger) Debug(format string, args ...interface{}) {
 	if !sl.isWrite(DebugLevel) {
 		return
@@ -89,6 +93,7 @@ func (sl *SimpleLogger) Debug(format string, args ...interface{}) {
 	sl.Write(context.Background(), true, "DEBUG", fmt.Sprintf(format, args...))
 }
 
+// Info
 func (sl *SimpleLogger) Info(format string, args ...interface{}) {
 	if !sl.isWrite(InfoLevel) {
 		return
@@ -96,6 +101,7 @@ func (sl *SimpleLogger) Info(format string, args ...interface{}) {
 	sl.Write(context.Background(), true, "INFO", fmt.Sprintf(format, args...))
 }
 
+// Warn
 func (sl *SimpleLogger) Warn(format string, args ...interface{}) {
 	if !sl.isWrite(WarnLevel) {
 		return
@@ -103,6 +109,7 @@ func (sl *SimpleLogger) Warn(format string, args ...interface{}) {
 	sl.Write(context.Background(), true, "WARN", fmt.Sprintf(format, args...))
 }
 
+// Error
 func (sl *SimpleLogger) Error(format string, args ...interface{}) {
 	if !sl.isWrite(ErrorLevel) {
 		return
@@ -110,6 +117,7 @@ func (sl *SimpleLogger) Error(format string, args ...interface{}) {
 	sl.Write(context.Background(), true, "ERROR", fmt.Sprintf(format, args...))
 }
 
+// Fatal
 func (sl *SimpleLogger) Fatal(format string, args ...interface{}) {
 	if !sl.isWrite(FatalLevel) {
 		return
@@ -117,6 +125,7 @@ func (sl *SimpleLogger) Fatal(format string, args ...interface{}) {
 	sl.Write(context.Background(), true, "FATAL", fmt.Sprintf(format, args...))
 }
 
+// String 生成待写入文件的数据
 func (sl *SimpleLogger) String(call bool, level, message string) string {
 	msg := ""
 	if call {
@@ -140,6 +149,7 @@ func (sl *SimpleLogger) String(call bool, level, message string) string {
 	return msg
 }
 
+// Write 写入文件
 func (sl *SimpleLogger) Write(ctx context.Context, call bool, level, message string) error {
 	write, err := sl.loadOrCreateWrite(level)
 	if err != nil {
@@ -148,10 +158,12 @@ func (sl *SimpleLogger) Write(ctx context.Context, call bool, level, message str
 	return write.AppendCtx(ctx, []byte(sl.String(call, level, message)))
 }
 
+// 设置错误等级
 func (sl *SimpleLogger) SetLevel(level int) {
 	atomic.StoreInt32(&sl.level, int32(level))
 }
 
+// 堆栈信息
 func (sl *SimpleLogger) Stack(err error) string {
 	return sl.format.Stack(err.Error())
 }
@@ -173,7 +185,8 @@ func (sl *SimpleLogger) Close() error {
 	return nil
 }
 
-func (sl *SimpleLogger) checkKeepDays(exit chan struct{}) {
+// checkKeepTime 检查文件保留时间
+func (sl *SimpleLogger) checkKeepTime(exit chan struct{}) {
 	ticker := time.NewTicker(10 * time.Minute)
 	for {
 		// 先执行一把
@@ -197,6 +210,7 @@ func (sl *SimpleLogger) checkKeepDays(exit chan struct{}) {
 	}
 }
 
+// loadOrCreateWrite 加载或创建写入对象
 func (sl *SimpleLogger) loadOrCreateWrite(level string) (*Write, error) {
 	sl.rwMutex.RLock()
 	w, ok := sl.writeMap[level]
@@ -223,6 +237,7 @@ func (sl *SimpleLogger) isWrite(level int) bool {
 
 var stdout io.Writer = os.Stderr
 
+// Output 系统输出
 func (sl *SimpleLogger) Output(calldepth int, s string) error {
 	_, file, line, ok := runtime.Caller(calldepth)
 	if !ok {
