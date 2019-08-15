@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	dir = "/Users/hzq/workspace/go_modules/github.com/simplelog/testdata"
+	dir = "./testdata"
 )
 
 func TestNewWrite(t *testing.T) {
