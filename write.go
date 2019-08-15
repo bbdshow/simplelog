@@ -11,6 +11,7 @@ import (
 	"time"
 )
 
+// Write 写入文件对象
 type Write struct {
 	// 当前文件名
 	currentFilename string
@@ -27,6 +28,7 @@ type Write struct {
 	file *os.File
 }
 
+// NewWrite new
 func NewWrite(filename string, maxSize int64) (*Write, error) {
 	w := Write{
 		currentFilename:   filename,
@@ -70,6 +72,7 @@ func NewWrite(filename string, maxSize int64) (*Write, error) {
 	return &w, nil
 }
 
+// AppendCtx 追加写入文件
 func (w *Write) AppendCtx(ctx context.Context, message []byte) error {
 	if atomic.LoadInt32(&w.isExit) == 1 {
 		return errors.New("write closed")
@@ -83,6 +86,7 @@ func (w *Write) AppendCtx(ctx context.Context, message []byte) error {
 	return nil
 }
 
+// Close 释放
 func (w *Write) Close() error {
 	time.Sleep(10 * time.Millisecond)
 	atomic.StoreInt32(&w.isExit, 1)
@@ -98,6 +102,7 @@ func (w *Write) Close() error {
 	}
 }
 
+// loop 持续写入文件
 func (w *Write) loop() {
 	for {
 		select {
@@ -116,10 +121,12 @@ func (w *Write) loop() {
 	}
 }
 
+// moreThan 容量是否超过
 func (w *Write) moreThan(size int) bool {
 	return atomic.AddInt64(&w.currentFileSize, int64(size)) > w.singleFileMaxSize
 }
 
+// isRoll 是否滚动文件
 func (w *Write) isRoll(roll bool) {
 	if roll {
 		var err error

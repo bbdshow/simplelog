@@ -19,6 +19,8 @@ import (
 
 	保留日志天数，定时扫描 dir
 */
+
+// SimpleLogger
 type SimpleLogger struct {
 	level  int32
 	cfg    Config
@@ -38,7 +40,7 @@ const (
 	FatalLevel
 )
 
-// 日志配置信息
+// Config 日志配置信息
 type Config struct {
 	// 写入文件夹
 	Dir string
@@ -57,7 +59,7 @@ type Config struct {
 	Format FormatConfig
 }
 
-// 默认配置
+// DefaultConfig 默认配置
 func DefaultConfig() Config {
 	return Config{
 		Dir:           "./log",
@@ -70,7 +72,7 @@ func DefaultConfig() Config {
 	}
 }
 
-// NewSimpleLogger
+// NewSimpleLogger new
 func NewSimpleLogger(cfg Config) (*SimpleLogger, error) {
 	sl := SimpleLogger{
 		level:    int32(cfg.Level),
@@ -117,7 +119,7 @@ func (sl *SimpleLogger) Error(format string, args ...interface{}) {
 	sl.Write(context.Background(), true, "ERROR", fmt.Sprintf(format, args...))
 }
 
-// Fatal
+// Fatal 等级
 func (sl *SimpleLogger) Fatal(format string, args ...interface{}) {
 	if !sl.isWrite(FatalLevel) {
 		return
@@ -158,12 +160,12 @@ func (sl *SimpleLogger) Write(ctx context.Context, call bool, level, message str
 	return write.AppendCtx(ctx, []byte(sl.String(call, level, message)))
 }
 
-// 设置错误等级
+// SetLevel 设置错误等级
 func (sl *SimpleLogger) SetLevel(level int) {
 	atomic.StoreInt32(&sl.level, int32(level))
 }
 
-// 堆栈信息
+// Stack 堆栈信息
 func (sl *SimpleLogger) Stack(err error) string {
 	return sl.format.Stack(err.Error())
 }
