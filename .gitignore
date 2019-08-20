@@ -13,4 +13,5 @@
 
 /testdata
 /log
+/example/log
 coverage.txt
