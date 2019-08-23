@@ -19,8 +19,8 @@ type Format struct {
 type FormatConfig struct {
 	// 时间格式
 	LogTimeFormat string
-	// 错误等级格式
-	LevelFormat string
+	// 关键字格式
+	FormatFlag string
 	// 消息前缀
 	MessagePrefix string
 }
@@ -37,7 +37,7 @@ func NewFormat(cfg FormatConfig) *Format {
 func DefaultFormatConfig() FormatConfig {
 	return FormatConfig{
 		LogTimeFormat: "2006-01-02 15:04:05.000000",
-		LevelFormat:   "[%s]",
+		FormatFlag:    "[%s]",
 		MessagePrefix: "",
 	}
 }
@@ -45,7 +45,7 @@ func DefaultFormatConfig() FormatConfig {
 // GenMessage 生成等待写入的内容
 func (f *Format) GenMessage(level, message string) string {
 	t := time.Now().Format(f.cfg.LogTimeFormat)
-	return fmt.Sprintf("%s %s %s%s\n", t, fmt.Sprintf(f.cfg.LevelFormat, level), f.cfg.MessagePrefix, message)
+	return fmt.Sprintf("%s %s %s%s\n", t, fmt.Sprintf(f.cfg.FormatFlag, level), f.cfg.MessagePrefix, message)
 }
 
 // 返回当前错误的堆栈信息
@@ -55,6 +55,10 @@ func (f *Format) Error(err error) string {
 	}
 
 	return f.Stack(err.Error())
+}
+
+func (f *Format) GetFormatFlag() string {
+	return f.cfg.FormatFlag
 }
 
 // 返回当前堆栈信息

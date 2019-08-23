@@ -127,6 +127,10 @@ func (sl *SimpleLogger) Fatal(format string, args ...interface{}) {
 	sl.Write(context.Background(), true, "FATAL", fmt.Sprintf(format, args...))
 }
 
+func (sl *SimpleLogger) WarpFlag(message string) string {
+	return fmt.Sprintf(sl.format.GetFormatFlag(), message)
+}
+
 // String 生成待写入文件的数据
 func (sl *SimpleLogger) String(call bool, level, message string) string {
 	msg := ""
