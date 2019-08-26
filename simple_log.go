@@ -92,7 +92,7 @@ func (sl *SimpleLogger) Debug(format string, args ...interface{}) {
 	if !sl.isWrite(DebugLevel) {
 		return
 	}
-	sl.Write(context.Background(), true, "DEBUG", fmt.Sprintf(format, args...))
+	sl.Write(context.Background(), "DEBUG", fmt.Sprintf(format, args...))
 }
 
 // Info
@@ -100,7 +100,7 @@ func (sl *SimpleLogger) Info(format string, args ...interface{}) {
 	if !sl.isWrite(InfoLevel) {
 		return
 	}
-	sl.Write(context.Background(), true, "INFO", fmt.Sprintf(format, args...))
+	sl.Write(context.Background(), "INFO", fmt.Sprintf(format, args...))
 }
 
 // Warn
@@ -108,7 +108,7 @@ func (sl *SimpleLogger) Warn(format string, args ...interface{}) {
 	if !sl.isWrite(WarnLevel) {
 		return
 	}
-	sl.Write(context.Background(), true, "WARN", fmt.Sprintf(format, args...))
+	sl.Write(context.Background(), "WARN", fmt.Sprintf(format, args...))
 }
 
 // Error
@@ -116,7 +116,7 @@ func (sl *SimpleLogger) Error(format string, args ...interface{}) {
 	if !sl.isWrite(ErrorLevel) {
 		return
 	}
-	sl.Write(context.Background(), true, "ERROR", fmt.Sprintf(format, args...))
+	sl.Write(context.Background(), "ERROR", fmt.Sprintf(format, args...))
 }
 
 // Fatal 等级
@@ -124,7 +124,7 @@ func (sl *SimpleLogger) Fatal(format string, args ...interface{}) {
 	if !sl.isWrite(FatalLevel) {
 		return
 	}
-	sl.Write(context.Background(), true, "FATAL", fmt.Sprintf(format, args...))
+	sl.Write(context.Background(), "FATAL", fmt.Sprintf(format, args...))
 }
 
 func (sl *SimpleLogger) WrapFlag(message string) string {
@@ -132,10 +132,10 @@ func (sl *SimpleLogger) WrapFlag(message string) string {
 }
 
 // String 生成待写入文件的数据
-func (sl *SimpleLogger) String(call bool, level, message string) string {
+func (sl *SimpleLogger) String(calldpeth int, level, message string) string {
 	msg := ""
-	if call {
-		_, file, line, ok := runtime.Caller(sl.cfg.Calldpeth)
+	if calldpeth > 0 {
+		_, file, line, ok := runtime.Caller(calldpeth)
 		if !ok {
 			file = "???"
 			line = 0
@@ -156,12 +156,12 @@ func (sl *SimpleLogger) String(call bool, level, message string) string {
 }
 
 // Write 写入文件
-func (sl *SimpleLogger) Write(ctx context.Context, call bool, level, message string) error {
+func (sl *SimpleLogger) Write(ctx context.Context, level, message string) error {
 	write, err := sl.loadOrCreateWrite(level)
 	if err != nil {
 		return err
 	}
-	return write.AppendCtx(ctx, []byte(sl.String(call, level, message)))
+	return write.AppendCtx(ctx, []byte(sl.String(sl.cfg.Calldpeth, level, message)))
 }
 
 // SetLevel 设置错误等级
