@@ -127,7 +127,7 @@ func (sl *SimpleLogger) Fatal(format string, args ...interface{}) {
 	sl.Write(context.Background(), true, "FATAL", fmt.Sprintf(format, args...))
 }
 
-func (sl *SimpleLogger) WarpFlag(message string) string {
+func (sl *SimpleLogger) WrapFlag(message string) string {
 	return fmt.Sprintf(sl.format.GetFormatFlag(), message)
 }
 
