@@ -9,11 +9,8 @@ import (
 )
 
 func TestSimpleLogger_Debug(t *testing.T) {
-	sl, err := NewSimpleLogger(DefaultConfig())
-	if err != nil {
-		t.Fatal(err)
-		return
-	}
+	sl := NewSimpleLogger(DefaultConfig())
+
 	count := 10
 	for count > 0 {
 		count--
@@ -23,11 +20,8 @@ func TestSimpleLogger_Debug(t *testing.T) {
 }
 
 func TestSimpleLogger_Info(t *testing.T) {
-	sl, err := NewSimpleLogger(DefaultConfig())
-	if err != nil {
-		t.Fatal(err)
-		return
-	}
+	sl := NewSimpleLogger(DefaultConfig())
+
 	count := 10
 	for count > 0 {
 		count--
@@ -37,11 +31,7 @@ func TestSimpleLogger_Info(t *testing.T) {
 }
 
 func TestSimpleLogger_Warn(t *testing.T) {
-	sl, err := NewSimpleLogger(DefaultConfig())
-	if err != nil {
-		t.Fatal(err)
-		return
-	}
+	sl := NewSimpleLogger(DefaultConfig())
 	count := 10
 	for count > 0 {
 		count--
@@ -51,11 +41,8 @@ func TestSimpleLogger_Warn(t *testing.T) {
 }
 
 func TestSimpleLogger_Error(t *testing.T) {
-	sl, err := NewSimpleLogger(DefaultConfig())
-	if err != nil {
-		t.Fatal(err)
-		return
-	}
+	sl := NewSimpleLogger(DefaultConfig())
+
 	count := 10
 	for count > 0 {
 		count--
@@ -65,11 +52,7 @@ func TestSimpleLogger_Error(t *testing.T) {
 }
 
 func TestSimpleLogger_Stack(t *testing.T) {
-	sl, err := NewSimpleLogger(DefaultConfig())
-	if err != nil {
-		t.Fatal(err)
-		return
-	}
+	sl := NewSimpleLogger(DefaultConfig())
 
 	sl.Error("%s_%s", "TestSimpleLogger_Fatal", sl.Stack(fmt.Errorf("这是stack")))
 
@@ -80,11 +63,8 @@ func TestSimpleLogger_Size(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.Compress = true
 	cfg.MaxSize = 1024 * 1024
-	sl, err := NewSimpleLogger(cfg)
-	if err != nil {
-		t.Fatal(err)
-		return
-	}
+	sl := NewSimpleLogger(cfg)
+
 	count := 100
 	for count > 0 {
 		count--
@@ -100,11 +80,7 @@ func TestSimpleLogger_Size(t *testing.T) {
 func TestSimpleLogger_Keep(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.MaxAge = 10 * time.Second
-	sl, err := NewSimpleLogger(cfg)
-	if err != nil {
-		t.Fatal(err)
-		return
-	}
+	sl := NewSimpleLogger(cfg)
 
 	sl.Info("info")
 
@@ -112,11 +88,7 @@ func TestSimpleLogger_Keep(t *testing.T) {
 }
 
 func TestSimpleLogger_SetLevel(t *testing.T) {
-	sl, err := NewSimpleLogger(DefaultConfig())
-	if err != nil {
-		t.Fatal(err)
-		return
-	}
+	sl := NewSimpleLogger(DefaultConfig())
 
 	sl.SetLevel(ErrorLevel)
 
