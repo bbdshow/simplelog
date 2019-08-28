@@ -1,18 +1,25 @@
 package simplelog
 
 import (
-	"context"
-	"errors"
+	"compress/gzip"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"os"
 	"path"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 )
 
 // Write 写入文件对象
 type Write struct {
+	mutex sync.Mutex
+
+	// 当前文件夹
+	currentDir string
+
 	// 当前文件名
 	currentFilename string
 	// 当前文件容量
@@ -20,39 +27,100 @@ type Write struct {
 	// 单文件最大容量 bytes
 	singleFileMaxSize int64
 
-	queue chan []byte
+	maxAge time.Duration // 0 永久保存
 
-	isExit int32
-	exit   chan struct{}
+	compress     bool
+	compressing  bool // 正在压缩
+	compressChan chan string
+
 	// 文件对象
 	file *os.File
 }
 
 // NewWrite new
-func NewWrite(filename string, maxSize int64) (*Write, error) {
+func NewWrite(filename string, maxSize int64, maxAge time.Duration, compress bool) *Write {
 	w := Write{
+		currentDir:        path.Dir(filename),
 		currentFilename:   filename,
 		singleFileMaxSize: maxSize,
-		queue:             make(chan []byte, 10000),
-		exit:              make(chan struct{}, 1),
+		maxAge:            maxAge,
+		compress:          compress,
+		compressChan:      make(chan string, 5),
 	}
 
-	dir := path.Dir(filename)
+	// 异步压缩文件
+	if compress {
+		go w.compressFile()
+	}
+
+	return &w
+}
+
+func (w *Write) Write(message []byte) (n int, err error) {
+	w.mutex.Lock()
+	defer w.mutex.Unlock()
+
+	if w.file == nil {
+		err = w.openFile()
+		if err != nil {
+			return n, err
+		}
+	}
+
+	n, err = w.file.Write(message)
+	if err != nil {
+		return n, err
+	}
+	w.isRoll(w.moreThan(n))
+
+	return n, nil
+}
+
+func (w *Write) Sync() error {
+	return nil
+}
+
+// Close 释放
+func (w *Write) Close() error {
+	// 等待压缩完成
+	var err error
+	count := 1000
+	for count > 0 {
+		count--
+
+		w.mutex.Lock()
+		if w.file != nil {
+			err = w.file.Close()
+		}
+		w.mutex.Unlock()
+
+		if !w.compressing {
+			close(w.compressChan)
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	return err
+}
+
+func (w *Write) openFile() error {
+	dir := path.Dir(w.currentFilename)
 	err := os.MkdirAll(dir, os.ModePerm|os.ModeDir)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// 查看文件信息
-	info, err := os.Stat(filename)
+	info, err := os.Stat(w.currentFilename)
 	if err != nil {
 		if os.IsExist(err) {
-			return nil, err
+			return err
 		} else {
 			// 不存在文件
 			f, err := os.Create(w.currentFilename)
 			if err != nil {
-				return nil, err
+				return err
 			}
 			w.file = f
 		}
@@ -60,65 +128,13 @@ func NewWrite(filename string, maxSize int64) (*Write, error) {
 		// 存在文件
 		f, err := os.OpenFile(w.currentFilename, os.O_APPEND|os.O_WRONLY, os.ModeAppend)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		w.file = f
 		w.currentFileSize = info.Size()
 	}
 
-	// 写文件
-	go w.loop()
-
-	return &w, nil
-}
-
-// AppendCtx 追加写入文件
-func (w *Write) AppendCtx(ctx context.Context, message []byte) error {
-	if atomic.LoadInt32(&w.isExit) == 1 {
-		return errors.New("write closed")
-	}
-
-	select {
-	case w.queue <- message:
-	case <-ctx.Done():
-		return errors.New("ctx done")
-	}
 	return nil
-}
-
-// Close 释放
-func (w *Write) Close() error {
-	time.Sleep(10 * time.Millisecond)
-	atomic.StoreInt32(&w.isExit, 1)
-	for {
-		if len(w.queue) == 0 {
-			w.exit <- struct{}{}
-			close(w.queue)
-			close(w.exit)
-			return w.file.Close()
-		}
-
-		time.Sleep(10 * time.Millisecond)
-	}
-}
-
-// loop 持续写入文件
-func (w *Write) loop() {
-	for {
-		select {
-		case <-w.exit:
-			return
-		case msg := <-w.queue:
-			n, err := w.file.Write(msg)
-			if err != nil {
-				err = w.AppendCtx(context.Background(), msg)
-				if err != nil {
-					fmt.Println("w.file.Write", err, msg)
-				}
-			}
-			w.isRoll(w.moreThan(n))
-		}
-	}
 }
 
 // moreThan 容量是否超过
@@ -151,12 +167,82 @@ func (w *Write) isRoll(roll bool) {
 				w.currentFileSize = 0
 				w.file = f
 			}
+
+			// gzip 压缩
+			if w.compress {
+				w.compressChan <- backupFilename
+			}
+
+			// 切割的时候检查一下文件时间
+			go w.maxAgeFile()
 		}
 	}
-
 }
 
 func (w *Write) timeSuffix() string {
 	now := time.Now()
 	return now.Format("2006-01-02 15:04:05.00000")
+}
+
+// 压缩文件
+func (w *Write) compressFile() {
+	for {
+		select {
+		case filename := <-w.compressChan:
+			if filename == "" {
+				return
+			}
+			// 正在压缩
+			w.compressing = true
+			f, err := os.Open(filename)
+			if err != nil {
+				fmt.Printf("failed to open log file %s : %v \n", filename, err)
+				break
+			}
+
+			dst := fmt.Sprintf("%s.gzip", filename)
+			gzipF, err := os.Create(dst)
+			if err != nil {
+				fmt.Printf("failed to open compressed log file: %v \n", err)
+				break
+			}
+
+			gz := gzip.NewWriter(gzipF)
+
+			if _, err := io.Copy(gz, f); err != nil {
+				fmt.Printf("log gzip io copy: %v \n", err)
+				break
+			}
+
+			gz.Close()
+
+			gzipF.Close()
+
+			f.Close()
+
+			if err := os.Remove(filename); err != nil {
+				fmt.Printf("failed remove source log file: %v \n", err)
+			}
+		}
+
+		w.compressing = false
+	}
+}
+
+func (w *Write) maxAgeFile() {
+	if w.maxAge > 0 {
+		before := time.Now().Add(-w.maxAge)
+		// 扫描当前文件夹里面的日志信息，删除过期的
+		// 先执行一把
+		files, err := ioutil.ReadDir(w.currentDir)
+		if err == nil {
+			for _, file := range files {
+				// 过期
+				if file.ModTime().Before(before) {
+					// 删除此文件
+					os.Remove(path.Join(w.currentDir, file.Name()))
+				}
+			}
+		}
+	}
 }

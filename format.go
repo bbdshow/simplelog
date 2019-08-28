@@ -11,6 +11,7 @@ import (
 	支持一定程度的自定义
 	支持输出 error 堆栈信息
 */
+
 type Format struct {
 	cfg FormatConfig
 }
@@ -19,8 +20,7 @@ type Format struct {
 type FormatConfig struct {
 	// 时间格式
 	LogTimeFormat string
-	// 关键字格式
-	FormatFlag string
+
 	// 消息前缀
 	MessagePrefix string
 }
@@ -37,28 +37,31 @@ func NewFormat(cfg FormatConfig) *Format {
 func DefaultFormatConfig() FormatConfig {
 	return FormatConfig{
 		LogTimeFormat: "2006-01-02 15:04:05.000000",
-		FormatFlag:    "[%s]",
 		MessagePrefix: "",
 	}
 }
 
 // GenMessage 生成等待写入的内容
-func (f *Format) GenMessage(level, message string) string {
+func (f *Format) GenMessage(level, message string) []byte {
 	t := time.Now().Format(f.cfg.LogTimeFormat)
-	return fmt.Sprintf("%s %s %s%s\n", t, fmt.Sprintf(f.cfg.FormatFlag, level), f.cfg.MessagePrefix, message)
-}
 
-// 返回当前错误的堆栈信息
-func (f *Format) Error(err error) string {
-	if err == nil {
-		return fmt.Sprint(err)
+	buf := _BufferPool.Get()
+	defer _BufferPool.Put(buf)
+
+	buf.AppendString(t)
+	buf.AppendString("\t")
+	buf.AppendString("[")
+	buf.AppendString(level)
+	buf.AppendString("]")
+	buf.AppendString("\t")
+
+	if f.cfg.MessagePrefix != "" {
+		buf.AppendString(f.cfg.MessagePrefix)
 	}
 
-	return f.Stack(err.Error())
-}
+	buf.AppendString(message)
 
-func (f *Format) GetFormatFlag() string {
-	return f.cfg.FormatFlag
+	return buf.Bytes()
 }
 
 // 返回当前堆栈信息
