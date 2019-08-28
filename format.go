@@ -60,6 +60,7 @@ func (f *Format) GenMessage(level, message string) []byte {
 	}
 
 	buf.AppendString(message)
+	buf.AppendString("\n")
 
 	return buf.Bytes()
 }

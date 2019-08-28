@@ -63,6 +63,7 @@ func (w *Write) Write(message []byte) (n int, err error) {
 	if w.file == nil {
 		err = w.openFile()
 		if err != nil {
+			fmt.Printf("failed create file: %v \n", err)
 			return n, err
 		}
 	}

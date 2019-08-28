@@ -85,7 +85,7 @@ func TestSimpleLogger_Size(t *testing.T) {
 		t.Fatal(err)
 		return
 	}
-	count := 10000
+	count := 100
 	for count > 0 {
 		count--
 		sl.Info("TestSimpleLogger_Size")

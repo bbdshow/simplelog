@@ -62,20 +62,20 @@ func DefaultConfig() Config {
 		MaxSize:   1024 * 1024 * 10,   // 10mb
 		MaxAge:    7 * 24 * time.Hour, // 7天
 		Compress:  false,
-		Calldpeth: 3,
+		Calldpeth: 2,
 		Level:     DebugLevel,
 		Format:    DefaultFormatConfig(),
 	}
 }
 
 // NewSimpleLogger new
-func NewSimpleLogger(cfg Config) (*SimpleLogger, error) {
+func NewSimpleLogger(cfg Config) *SimpleLogger {
 	sl := SimpleLogger{
 		level:  int32(cfg.Level),
 		cfg:    cfg,
 		format: NewFormat(cfg.Format),
 	}
-	return &sl, nil
+	return &sl
 }
 
 // Debug
