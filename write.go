@@ -13,6 +13,10 @@ import (
 	"time"
 )
 
+const (
+	_compressSuffix = ".gz"
+)
+
 // Write 写入文件对象
 type Write struct {
 	mutex sync.Mutex
@@ -201,7 +205,7 @@ func (w *Write) compressFile() {
 				break
 			}
 
-			dst := fmt.Sprintf("%s.gzip", filename)
+			dst := fmt.Sprintf("%s%s", filename, _compressSuffix)
 			gzipF, err := os.Create(dst)
 			if err != nil {
 				fmt.Printf("failed to open compressed log file: %v \n", err)
