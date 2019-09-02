@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 	"sync/atomic"
-	"time"
 )
 
 /*
@@ -39,32 +38,22 @@ const (
 
 // Config 日志配置信息
 type Config struct {
-	// 写入文件
-	Filename string
-	// 单文件最大 bytes
-	MaxSize int64
-	// 保留文件时间
-	MaxAge time.Duration
-	// Gzip 压缩
-	Compress bool
 	// 调用深度
 	Calldpeth int
 	// 日志等级，>= 设置的等级才会写入
 	Level int
 	// 格式化，配置
-	Format FormatConfig
+	Format *FormatConfig
+	Write  *WriteConfig
 }
 
 // DefaultConfig 默认配置
 func DefaultConfig() Config {
 	return Config{
-		Filename:  "./log/log.log",
-		MaxSize:   1024 * 1024 * 10,   // 10mb
-		MaxAge:    7 * 24 * time.Hour, // 7天
-		Compress:  false,
 		Calldpeth: 2,
 		Level:     DebugLevel,
 		Format:    DefaultFormatConfig(),
+		Write:     DefaultWriteConfig(),
 	}
 }
 
@@ -144,7 +133,8 @@ func (sl *SimpleLogger) String(calldpeth int, level, message string) []byte {
 // Append 写入文件
 func (sl *SimpleLogger) Append(message []byte) (n int, err error) {
 	if sl.write == nil {
-		sl.write = NewWrite(sl.cfg.Filename, sl.cfg.MaxSize, sl.cfg.MaxAge, sl.cfg.Compress)
+
+		sl.write = NewWrite(sl.cfg.Write)
 	}
 	return sl.write.Write(message)
 }

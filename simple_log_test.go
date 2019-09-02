@@ -61,8 +61,8 @@ func TestSimpleLogger_Stack(t *testing.T) {
 
 func TestSimpleLogger_Size(t *testing.T) {
 	cfg := DefaultConfig()
-	cfg.Compress = true
-	cfg.MaxSize = 1024 * 1024
+	cfg.Write.Compress = true
+	cfg.Write.MaxSize = 1024 * 1024
 	sl := NewSimpleLogger(cfg)
 
 	count := 100
@@ -79,7 +79,7 @@ func TestSimpleLogger_Size(t *testing.T) {
 
 func TestSimpleLogger_Keep(t *testing.T) {
 	cfg := DefaultConfig()
-	cfg.MaxAge = 10 * time.Second
+	cfg.Write.MaxAge = 10 * time.Second
 	sl := NewSimpleLogger(cfg)
 
 	sl.Info("info")
@@ -96,7 +96,7 @@ func TestSimpleLogger_SetLevel(t *testing.T) {
 
 	sl.Close()
 
-	content, _ := ioutil.ReadFile(sl.cfg.Filename)
+	content, _ := ioutil.ReadFile(sl.cfg.Write.Filename)
 	if strings.Index(string(content), "TestSimpleLogger_SetLevel") != -1 {
 		t.Fail()
 	}

@@ -41,19 +41,42 @@ type Write struct {
 	file *os.File
 }
 
+type WriteConfig struct {
+	// 写入文件
+	Filename string
+	// 单文件最大 bytes
+	MaxSize int64
+	// 保留文件时间
+	MaxAge time.Duration
+	// Gzip 压缩
+	Compress bool
+}
+
+func DefaultWriteConfig() *WriteConfig {
+	return &WriteConfig{
+		Filename: "./log/logger.log",
+		MaxSize:  1024 * 1024 * 100,
+		MaxAge:   time.Duration(7*24) * time.Hour,
+		Compress: true,
+	}
+}
+
 // NewWrite new
-func NewWrite(filename string, maxSize int64, maxAge time.Duration, compress bool) *Write {
+func NewWrite(cfg *WriteConfig) *Write {
+	if cfg == nil {
+		cfg = DefaultWriteConfig()
+	}
 	w := Write{
-		currentDir:        path.Dir(filename),
-		currentFilename:   filename,
-		singleFileMaxSize: maxSize,
-		maxAge:            maxAge,
-		compress:          compress,
+		currentDir:        path.Dir(cfg.Filename),
+		currentFilename:   cfg.Filename,
+		singleFileMaxSize: cfg.MaxSize,
+		maxAge:            cfg.MaxAge,
+		compress:          cfg.Compress,
 		compressChan:      make(chan string, 5),
 	}
 
 	// 异步压缩文件
-	if compress {
+	if w.compress {
 		go w.compressFile()
 	}
 

@@ -13,7 +13,7 @@ import (
 */
 
 type Format struct {
-	cfg FormatConfig
+	cfg *FormatConfig
 }
 
 // FormatConfig
@@ -26,7 +26,7 @@ type FormatConfig struct {
 }
 
 // NewFormat
-func NewFormat(cfg FormatConfig) *Format {
+func NewFormat(cfg *FormatConfig) *Format {
 	f := Format{
 		cfg: cfg,
 	}
@@ -34,8 +34,8 @@ func NewFormat(cfg FormatConfig) *Format {
 }
 
 // 默认格式化配置文件
-func DefaultFormatConfig() FormatConfig {
-	return FormatConfig{
+func DefaultFormatConfig() *FormatConfig {
+	return &FormatConfig{
 		LogTimeFormat: "2006-01-02 15:04:05.000000",
 		MessagePrefix: "",
 	}

@@ -15,7 +15,13 @@ var (
 )
 
 func TestWrite_isRoll(t *testing.T) {
-	w := NewWrite(dir+"/TestWrite_isRoll.log", 50, maxAge, compress)
+
+	w := NewWrite(&WriteConfig{
+		Filename: dir + "/TestWrite_isRoll.log",
+		MaxSize:  50,
+		MaxAge:   maxAge,
+		Compress: compress,
+	})
 
 	count := 30
 	for count > 0 {
