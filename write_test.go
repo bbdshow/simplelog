@@ -9,9 +9,8 @@ import (
 )
 
 var (
-	dir      = "./testdata"
-	maxAge   = time.Hour
-	compress = true
+	dir    = "./testdata"
+	maxAge = time.Hour
 )
 
 func TestWrite_isRoll(t *testing.T) {
@@ -20,7 +19,7 @@ func TestWrite_isRoll(t *testing.T) {
 		Filename: dir + "/TestWrite_isRoll.log",
 		MaxSize:  50,
 		MaxAge:   maxAge,
-		Compress: compress,
+		Compress: true,
 	})
 
 	count := 30

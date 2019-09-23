@@ -1,6 +1,7 @@
 package simplelog
 
 import (
+	"archive/tar"
 	"compress/gzip"
 	"fmt"
 	"io"
@@ -14,7 +15,7 @@ import (
 )
 
 const (
-	_compressSuffix = ".gz"
+	_compressSuffix = ".tar.gz"
 )
 
 // Write 写入文件对象
@@ -33,9 +34,8 @@ type Write struct {
 
 	maxAge time.Duration // 0 永久保存
 
-	compress     bool
-	compressing  bool // 正在压缩
-	compressChan chan string
+	compress    bool
+	compressing chan struct{} // 正在压缩
 
 	// 文件对象
 	file *os.File
@@ -66,18 +66,14 @@ func NewWrite(cfg *WriteConfig) *Write {
 	if cfg == nil {
 		cfg = DefaultWriteConfig()
 	}
+
 	w := Write{
 		currentDir:        path.Dir(cfg.Filename),
 		currentFilename:   cfg.Filename,
 		singleFileMaxSize: cfg.MaxSize,
 		maxAge:            cfg.MaxAge,
 		compress:          cfg.Compress,
-		compressChan:      make(chan string, 5),
-	}
-
-	// 异步压缩文件
-	if w.compress {
-		go w.compressFile()
+		compressing:       make(chan struct{}, 1),
 	}
 
 	return &w
@@ -112,23 +108,22 @@ func (w *Write) Sync() error {
 func (w *Write) Close() error {
 	// 等待压缩完成
 	var err error
-	count := 1000
-	for count > 0 {
-		count--
-
+	tick := time.NewTicker(30 * time.Second)
+	for {
 		w.mutex.Lock()
 		if w.file != nil {
 			err = w.file.Close()
 		}
 		w.mutex.Unlock()
 
-		if !w.compressing {
-			close(w.compressChan)
-			break
+		select {
+		case w.compressing <- struct{}{}:
+			goto exit
+		case <-tick.C:
+			goto exit
 		}
-		time.Sleep(10 * time.Millisecond)
 	}
-
+exit:
 	return err
 }
 
@@ -198,7 +193,7 @@ func (w *Write) isRoll(roll bool) {
 
 			// gzip 压缩
 			if w.compress {
-				w.compressChan <- backupFilename
+				go w.compressFile(backupFilename)
 			}
 
 			// 切割的时候检查一下文件时间
@@ -209,52 +204,59 @@ func (w *Write) isRoll(roll bool) {
 
 func (w *Write) timeSuffix() string {
 	now := time.Now()
-	return now.Format("2006-01-02 15:04:05.00000")
+	return now.Format("2006-01-02T15:04:05.00000")
 }
 
 // 压缩文件
-func (w *Write) compressFile() {
-	for {
-		select {
-		case filename := <-w.compressChan:
-			if filename == "" {
-				return
-			}
-			// 正在压缩
-			w.compressing = true
-			f, err := os.Open(filename)
-			if err != nil {
-				fmt.Printf("failed to open log file %s : %v \n", filename, err)
-				break
-			}
+func (w *Write) compressFile(filename string) {
+	select {
+	case w.compressing <- struct{}{}:
+		defer func() {
+			<-w.compressing
+		}()
 
-			dst := fmt.Sprintf("%s%s", filename, _compressSuffix)
-			gzipF, err := os.Create(dst)
-			if err != nil {
-				fmt.Printf("failed to open compressed log file: %v \n", err)
-				break
-			}
-
-			gz := gzip.NewWriter(gzipF)
-
-			if _, err := io.Copy(gz, f); err != nil {
-				fmt.Printf("log gzip io copy: %v \n", err)
-				break
-			}
-
-			gz.Close()
-
-			gzipF.Close()
-
-			f.Close()
-
-			if err := os.Remove(filename); err != nil {
-				fmt.Printf("failed remove source log file: %v \n", err)
-			}
+		if filename == "" {
+			return
 		}
 
-		w.compressing = false
+		destName := fmt.Sprintf("%s%s", filename, _compressSuffix)
+		dest, err := os.Create(destName)
+		if err != nil {
+			fmt.Printf("failed to open compressed log file: %v \n", err)
+			break
+		}
+		defer dest.Close()
+
+		gz := gzip.NewWriter(dest)
+		defer gz.Close()
+
+		tw := tar.NewWriter(gz)
+		defer tw.Close()
+
+		file, err := os.Open(filename)
+		if err != nil {
+			fmt.Printf("failed to open log file %s : %v \n", filename, err)
+			break
+		}
+		defer file.Close()
+		destInfo, _ := file.Stat()
+
+		tHeader, err := tar.FileInfoHeader(destInfo, destInfo.Name())
+		if err != nil {
+			break
+		}
+		_ = tw.WriteHeader(tHeader)
+
+		if _, err := io.Copy(tw, file); err != nil {
+			fmt.Printf("log tar gzip %v \n", err)
+			break
+		}
+
+		if err := os.Remove(filename); err != nil {
+			fmt.Printf("remove source file: %v \n", err)
+		}
 	}
+
 }
 
 func (w *Write) maxAgeFile() {
